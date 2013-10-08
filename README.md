@@ -16,7 +16,12 @@ about 30 AGC instructions + YUL interpreted language.
 
 As you can see, this is very very small memory to perform many calculation, so optimisation and compacting are expected.
 
-05/10/2013 : 
+08/10/2013 :
+YUL:
+Label resolution done. Opcode recognition basics. Bank switching.
+TODO : implement Compilation instruction
+
+06/10/2013 : 
 Memory map access and file : DONE (Bank class)
 Word manipulation : DONE (sWord class)
 Clock emulation : TODO (placeholder CLOCK class)
