@@ -34,4 +34,4 @@ Manipulation de mots de 16 bits : DONE (sWord class)
 Emulation d'horloge : TODO (placeholder CLOCK class)
 AGC : TODO (bases are set, interpreter should work. OPCODES need to be coded)
 
-Any suggestions welcome. The code is "documented" and may be understandable, but any question welcome too :)
+Le code est commenté (en anglais) dans les grandes lignes. Toute suggestion ou commentaires sont bienvenus :)
