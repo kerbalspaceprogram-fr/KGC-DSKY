@@ -1,33 +1,37 @@
-AGC-DSKY emulation for KSP
+Simulation AGC-DSKY pour KSP
 
-This is mostly work in progress, and I take time to discover C# and AGC/DSKY, the later not the easier.
+Ce plugin/addon est en développement et n'est pas implémenté dans KSP pour le moment. 
+Je prends le temps de découvrir le C# et le fonctionnement de l'AGC-DSKY en même temps.
 
-I'll upload ASAP some assembly information to the wiki (to play with the assembler), and important information about the memory map, register, files and so on.
+Ce plugin a pour vocation de ressembler à l'AGC-DSKY, mais pas de l'émuler à 100%. C'est déjà assez compliqué comme ça :p (et surtout, certaines fonctions sont sans intérêt dans KSP)
 
-Notice that it isn't an accurate simulation of the AGC (I'll use some differents OPCODES, and the YUL will be interpreted by the plugin, not by the Interpreter hardcoded into the AGC), but I'll try to stay as close as possible to the original design (memory map, register, clock...)
+Quelques spécifications pour une idée globals : 
+-Mots de 16 bits
+-8 * 256 mots de RAM (2kw)
+-36 * 1024 mots de ROM (36kw)
+12ms / cycle
+environ 30  instructions AGC (YUL) + un langage interprété en interne.
+-registres I/O : 2 * 4 mots
 
-Some quick specification :
-16b words 
-8 * 256 words of RAM (2kw)
-36 * 1024 words of ROM (36kw)
-12µs / cycle
-about 30 AGC instructions + YUL interpreted language.
-2 * 4 words I/O registers
+Comme vous pouvez le voir, c'est pas un truc de compétition, et pourtant, va falloir que ça vole :)
 
-As you can see, this is very very small memory to perform many calculation, so optimisation and compacting are expected.
+Changelog :
+02/11/2013:
+YUL : YUL fonctionne et devrait compiler le code AGC normalement. Le code interprété n'est pas encore géré.
+YUL GUI : c'est moche, mais ça fait ce qu'on lui demande. Je le laisse en état pour l'instant, c'est pas ma priorité,
+ça tient lieu de placeholder pour un futur debugger.
 
 08/10/2013 :
 YUL:
-Label resolution done. Opcode recognition basics. Bank switching.
-TODO : implement Compilation instruction
+Résolutions des labels
+Reconnaissance des OPCODEs
+Changement de bank.
+TODO : Implémentation des instructions de compilation
 
 06/10/2013 : 
-Memory map access and file : DONE (Bank class)
-Word manipulation : DONE (sWord class)
-Clock emulation : TODO (placeholder CLOCK class)
+Accès mémoire et fichier mémoire : DONE (Bank class)
+Manipulation de mots de 16 bits : DONE (sWord class)
+Emulation d'horloge : TODO (placeholder CLOCK class)
 AGC : TODO (bases are set, interpreter should work. OPCODES need to be coded)
-ASSEMBLER : IN PROGRESS (I wish to start by the assembler, so I have fully runable code to test the AGC, and coding series of 0 and 1 in a 38.000 lines long text file is... Well...)
-
-For now, the assembler routine recognize TC/AD/MASK (for testing purpose), labelled adress (as defined constant), in-code adress (as jump target), but doesn't switch bank yet (to come soon, working on it...) and doesn't do anything more.... Except compiling it to bitcode for the AGC to interpret them (wich it does, by displaying opcodes interpreted and the operand)
 
 Any suggestions welcome. The code is "documented" and may be understandable, but any question welcome too :)
