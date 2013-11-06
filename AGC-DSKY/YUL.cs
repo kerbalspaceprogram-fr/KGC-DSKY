@@ -20,19 +20,21 @@ namespace nYUL
         FileStream AGC_Bit;
         String AGC_Code_File;
         String AGC_Bit_File;
-        BANK B;
-        int max_pass = 5;
+        BANK Bank;
+        const int max_pass = 5;
         int bank_index = 0;
-        int[] bank_count;
+        int[] bank_index_counter;
         Dictionary<String, int> labels = new Dictionary<String, int>();
-        fvDict fix = new fvDict();
+        fvDict fixedValue = new fvDict();
         bool bank_changed;
         int error = 0;
         int pass_count = 0;
-        int lerror = -6;
-        int FC_count = 0;
+        int unresolvedLabelError = -6;
+        int unresolvedFCAdrCount = 0;
         string bank_type = "FB";
         string filename;
+        int line_num = 0;
+        Dictionary<int, string> YULErrors;
 
         /// <summary>
         /// Constructor for the compiler
@@ -56,21 +58,21 @@ namespace nYUL
             AGC_Bit.Close();
             AGC_Bit.Dispose();
             Console.WriteLine("Empty bin file created");
-            bank_count = new int[44];
+            bank_index_counter = new int[44];
             for (int i = 0; i < 44; i++)
             {
-                bank_count[i] = 0;
+                bank_index_counter[i] = 0;
             }
             Cp_File = File.ReadAllLines(AGC_Code_File);
             FB = 0;
             EB = 0;
             FEB = 0;
-            lerror = -6;
-            B = new BANK(false, FB, FEB, AGC_Bit_File);
-            B.compiling = true;
+            unresolvedLabelError = -6;
+            Bank = new BANK(false, FB, FEB, AGC_Bit_File);
+            Bank.compiling = true;
             bank_changed = false;
         }
-
+        //Run function
         /// <summary>
         /// The compilation routine process lines in mode 0 (resolve labels) then in mode 1 (resolve opcodes) and create the summary output file.
         /// A maximum of 5 passes is granted to process labels.
@@ -78,25 +80,31 @@ namespace nYUL
         /// <returns>Error index</returns>
         public int compile()
         {
-            while (lerror == -6 && pass_count < max_pass)
+            while (unresolvedLabelError == -6 && pass_count < max_pass)
             { //until all labels are resolved
-                FC_count = 0;
+                unresolvedFCAdrCount = 0;
                 FB = 0;
                 EB = 0;
                 FEB = 0;
                 bank_changed = true;
                 for (int i = 0; i < 44; i++)
                 {
-                    bank_count[i] = 0;
+                    bank_index_counter[i] = 0;
                 }
                 bank_index = 0;
-                process_line(0);
+                error = process_line(0);
+                if (error != 0)
+                {
+                    string errString = errorProcessing();
+                    Console.WriteLine("Error at Line {0} return {1} : {2} ", line_num +1, error, errString);
+                    return error;
+                }
                 pass_count++;
                 Console.WriteLine("Labels pass : {0}", pass_count);
-                if(labels.Keys.Count() == 0)
+                if (labels.Keys.Count() == 0)
                 {
                     Console.WriteLine("No labels found");
-                    lerror = 0;
+                    unresolvedLabelError = 0;
                 }
             }
             if (pass_count == max_pass)
@@ -110,11 +118,18 @@ namespace nYUL
             bank_changed = true;
             for (int i = 0; i < 43; i++)
             {
-                bank_count[i] = 0;
+                bank_index_counter[i] = 0;
             }
             bank_index = 0;
             Console.WriteLine("Compiling...");
-            process_line(1);
+            error = process_line(1);
+            if (error != 0)
+            {
+                string errString = errorProcessing();
+                Console.WriteLine("Error at Line {0} return {1} : {2} ", line_num+1, error, errString);
+                return error;
+            }
+            Bank.write_bank();
             save_index();
             if (labels.Keys.Count != 0)
             {
@@ -122,50 +137,10 @@ namespace nYUL
                 output_labels();
                 Console.WriteLine("Done.");
             }
-            return error;
+            return 0;
         }
 
-        /// <summary>
-        /// Print labels list and memory status to "Labels_"+AGC_Code_File
-        /// </summary>
-        private void output_labels()
-        {
-            if (File.Exists("Labels_" + filename))
-            {
-                File.Delete("Labels_" + filename);
-            }
-            FileStream fs = File.Create("Labels_" + filename);
-            fs.Close();
-            fs.Dispose();
-            StreamWriter sw = new StreamWriter("Labels_" + AGC_Code_File, true);
-            string output;
-            sw.Write("=============================\nLabels list & adress : \n=============================\n");
-            foreach (KeyValuePair<string, int> kvp in labels)
-            {
-                output = String.Format("Label : {0} - Adress : 0x{1:X4} \n", kvp.Key, kvp.Value);
-                sw.Write(output);
-            }
-            sw.Write("\n=============================\nMemory usage : \n=============================\n");
-            for (int i = 0; i <= 7; i++)
-            {
-                output = String.Format("EBank : {0} - {1} word(s) used. \n", i, bank_count[i]);
-                sw.Write(output);
-            }
-            sw.Write("=============================\n");
-            for (int i = 0; i <= 31; i++)
-            {
-                output = String.Format("FBank : {0} - {1} word(s) used. \n", i, bank_count[i + 8]);
-                sw.Write(output);
-            }
-            sw.Write("=============================\n");
-            for (int i = 32; i <= 35; i++)
-            {
-                output = String.Format("SuperBank : {0} - {1} word(s) used. \n", i, bank_count[i + 8]);
-                sw.Write(output);
-            }
-            sw.Close();
-        }
-
+        //processing unit
         /// <summary>
         /// Read the AGC Code file and process lines
         /// </summary>
@@ -175,93 +150,84 @@ namespace nYUL
         {
             String current;
             char[] sep = new char[] { '\t' };
-            for (int i = 0; i < Cp_File.Length; i++)
+            for (line_num = 0; line_num < Cp_File.Length; line_num++)
             {
-                if ((current = Cp_File[i]) != null)
+                if ((current = Cp_File[line_num]) != null)
                 {
                     if (bank_changed)
                     {
-                        switch (bank_type)
-                        {
-                            case "FB":
-                                B = new BANK(false, FB, FEB, AGC_Bit_File);
-                                break;
-                            case "EB":
-                                B = new BANK(true, EB, 0, AGC_Bit_File);
-                                break;
-                        }
-                        B.compiling = true;
-                        bank_changed = false;
+                        switchBank();
                     }
                     String[] items = current.Split(sep, StringSplitOptions.None);
-                    switch (mode)
+                    if (!items[0].Contains("#"))
                     {
-                        case 0:
-                            if (items[0] != "")
-                            {
-                                error = resolve_labels(items);
-                            }
-                            else
-                            {
-                                try
-                                {
-                                    switch (items[1])
-                                    {
-                                        case "BANK":
-                                            switch_bank(items);
-                                            break;
-                                        case "EBANK":
-                                            switch_bank(items);
-                                            break;
-                                        case "SETLOC":
-                                            bank_index = (ushort)Int16.Parse(items[2], System.Globalization.NumberStyles.HexNumber);
-                                            break;
-                                        case "2FCADR":
-                                            lerror = toFCADR(items);
-                                            break;
-                                        case "ERASE":
-                                            B.set_sword((ushort)bank_index, (ushort)0);
-                                            B.write_bank();
-                                            bank_index++;
-                                            break;
-                                        default:
-                                            B.set_sword((ushort)bank_index, (ushort)0);
-                                            B.write_bank();
-                                            bank_index++;
-                                            break;
-                                    }
-                                }
-                                catch
-                                {
-                                }
-                            }
-                            break;
-                        case 1:
-                            try
-                            {
-                                if (items[1] != "")
-                                {
-                                    error = resolve_opcode(items);
-                                }
-                            }
-                            catch
-                            {
-                            }
-                            break;
+                        switch (mode)
+                        {
+                            case 0:
+                                labelMode(items);
+                                break;
+                            case 1:
+                                compileMode(items);
+                                break;
+                        }
                     }
                 }
                 else
                 {
                     error = -4;
                 } //EOF
-                if (error != 0 && lerror != -6)
+                if (!check_index())
                 {
-                    return error;
+                    error = -7;
                 }
+                if (error != 0)
+                { return error; }
+            }
+            if (unresolvedFCAdrCount == 0)
+            {
+                unresolvedLabelError = 0; ;
             }
             return error;
         }
+        private void compileMode(String[] items)
+        {
+            try
+            {
+                if (items[1] != "")
+                {
+                    error = resolve_opcode(items);
+                }
+            }
+            catch
+            {
+            }
+        }
+        private void labelMode(String[] items)
+        {
+            if (items[0] != "")
+            {
+                error = resolve_labels(items);
+            }
+            else
+            {
+                try
+                {
+                    error = preProcessorOp(items, false);
+                }
+                catch
+                {
+                }
+            }
+        }
+        private string errorProcessing()
+        {
+            fillErrorDict();
+            string val;
+            YULErrors.TryGetValue(error, out val);
+            return val;
+        }
 
+        //resolving unit
         /// <summary>
         /// Resolve the labels adress
         /// </summary>
@@ -269,7 +235,7 @@ namespace nYUL
         /// <returns>error index</returns>
         private int resolve_labels(String[] items)
         {
-            int adress = B.get_ba() / 16 + bank_index;
+            int adress = Bank.get_ba() / 16 + bank_index;
             int val = 0;
             if (labels.TryGetValue(items[0], out val))
             {
@@ -282,20 +248,14 @@ namespace nYUL
             switch (items[1])
             {
                 case "=":
-                    if (error != -5)
-                    {
-                        B.set_sword((ushort)bank_index, ResolveOperand(items[2]));
-                        B.write_bank();
-                    }
-                    break;
+                    return assignValue(items, false);
                 case "2FCADR":
-                    lerror = toFCADR(items);
-                    return lerror;
+                    unresolvedLabelError = toFCADR(items, false);
+                    return 0;
             }
             bank_index += 1;
             return 0;
         }
-
         /// <summary>
         /// Resolve the opcode and add a computed operand
         /// </summary>
@@ -305,181 +265,56 @@ namespace nYUL
         {
             ushort opcode = 0;
             ushort adress = 0;
-            if (fix.opcode.TryGetValue(items[1], out opcode))
+            if (fixedValue.opcode.TryGetValue(items[1], out opcode) || fixedValue.extrac.TryGetValue(items[1], out opcode))
             {
                 opcode *= 4096;
             }
-            else if (fix.quarter.TryGetValue(items[1], out opcode))
+            else if (fixedValue.quarter.TryGetValue(items[1], out opcode) || fixedValue.extraq.TryGetValue(items[1], out opcode))
             {
                 opcode *= 1024;
             }
-            else if (fix.extrac.TryGetValue(items[1], out opcode))
-            {
-                opcode *= 4096;
-            }
-            else if (fix.extraq.TryGetValue(items[1], out opcode))
-            {
-                opcode *= 1024;
-            }
-            else if (fix.IACode.TryGetValue(items[1], out opcode))
+            else if (fixedValue.IACode.TryGetValue(items[1], out opcode))
             {
                 if (opcode == 7)
                 {
-                    if (B.isErasable())
+                    if (Bank.isErasable())
                     {
-                        B.set_sword((ushort)bank_index, 0x3000);
+                        Bank.set_word((ushort)bank_index, 0x3000);
                     }
                     else if (FB == 2 | FB == 3)
                     {
-                        B.set_sword((ushort)bank_index, (ushort)(0x1001 + B.get_ba() + bank_index));
+                        Bank.set_word((ushort)bank_index, (ushort)(0x1001 + Bank.get_ba() + bank_index));
                     }
                     else
                     {
-                        B.set_sword((ushort)bank_index, (ushort)(0x1001 + 0x0400 + bank_index));
+                        Bank.set_word((ushort)bank_index, (ushort)(0x1001 + 0x0400 + bank_index));
                     }
                 }
                 else
                 {
-                    B.set_sword((ushort)bank_index, (ushort)opcode);
+                    Bank.set_word((ushort)bank_index, (ushort)opcode);
                 }
                 bank_index++;
                 return 0;
             }
             else
             {
-                switch (items[1])
-                {
-                    case "SETLOC":
-                        error = SETLOC(items);
-                        return 0;
-                    case "ERASE":
-                        bank_index++;
-                        return 0;
-                    case "BANK":
-                        switch_bank(items);
-                        return 0;
-                    case "EBANK":
-                        switch_bank(items);
-                        return 0;
-                    case "=":
-                        bank_index++;
-                        return 0;
-                    case "2FCADR":
-                        bank_index += 2;
-                        return 0;
-                    default:
-                        bank_index++;
-                        return -1;
-                }
+                return preProcessorOp(items, true);
             }
-            adress = ResolveOperand(items[2]);
-            B.set_sword((ushort)bank_index, (ushort)(opcode + adress));
-            B.write_bank();
+            error = ResolveOperand(items[2]);
+            if (error == -1)
+            { return error; }
+            else { adress = (ushort)error; }
+            Bank.set_word((ushort)bank_index, (ushort)(opcode + adress));
             bank_index += 1;
             return 0;
         }
-
-        /// <summary>
-        /// Process the SETLOC Pre-processor word
-        /// </summary>
-        /// <param name="item">The current line</param>
-        /// <returns>error index</returns>
-        private int SETLOC(string[] item)
-        {
-            int val = 0;
-            int keyval;
-            try
-            {
-                val = Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber);
-            }
-            catch
-            {
-                if (labels.TryGetValue(item[2], out keyval))
-                {
-                    val = keyval;
-                }
-                else
-                {
-                    return -6; //unknown label
-                }
-            }
-            if (B.isErasable())
-            {
-                if (val <= 0xFF)
-                {
-                    bank_index = val;
-                }
-                else
-                {
-                    return -7;
-                } //index out of range
-            }
-            else
-            {
-                if (val <= 0x3FF)
-                {
-                    bank_index = val;
-                }
-                else
-                {
-                    return -7;
-                } //index out of range
-            }
-            return 0;
-        }
-
-        /// <summary>
-        /// Process the 2FCADR Pre-processor word
-        /// </summary>
-        /// <param name="item">the current line</param>
-        /// <returns>error index</returns>
-        private int toFCADR(string[] item)
-        {
-            sWord adr = null;
-            try
-            {
-                adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber), true);
-            }
-            catch
-            {
-                int val = 0;
-                if (labels.TryGetValue(item[2], out val))
-                {
-                    adr = new sWord((ushort)val, true);
-                }
-                else
-                {
-                    bank_index += 2;
-                    FC_count += 1;
-                    return -6;
-                }
-            }
-            int tad = adr.getVal(10, 14);
-            if (tad < 4)
-            {
-                B.set_sword((ushort)bank_index, (ushort)(adr.getVal(10, 14)));
-            }
-            else
-            {
-                B.set_sword((ushort)bank_index, (ushort)(adr.getVal(10, 14) - 4));
-            }
-            bank_index++;
-            B.set_sword((ushort)bank_index, (ushort)(adr.getVal(0, 9)));
-            bank_index++;
-            B.write_bank();
-            if (FC_count > 0)
-            {
-                return -6;
-            }
-            return 0;
-        }
-
         /// <summary>
         /// Compute the operand from the line
         /// </summary>
         /// <param name="item">the current line</param>
         /// <returns>error index</returns>
-        private ushort ResolveOperand(string item)
+        private int ResolveOperand(string item)
         {
             ushort adress = 0;
             try
@@ -509,71 +344,298 @@ namespace nYUL
                         }
                     }
                 }
-                else if (fix.registers.TryGetValue(item, out val))
+                else if (fixedValue.registers.TryGetValue(item, out val))
                 {
                     adress = (ushort)val;
                 }
                 else
                 {
-                    return 1;
+                    return -2;
                 }
             }
             return adress;
         }
 
+        //pre-processor resolver
+        private int preProcessorOp(String[] items, bool mode)
+        {
+            switch (items[1])
+            {
+                case "SETLOC":
+                    return SETLOC(items);
+                case "ERASE":
+                    if (mode) { Bank.set_word((ushort)bank_index, 0); }
+                    bank_index++;
+                    return 0;
+                case "BANK":
+                    return prepareBankSwitch(items);
+                case "EBANK":
+                    return prepareBankSwitch(items);
+                case "=":
+                    return assignValue(items, mode);
+                case "2FCADR":
+                    unresolvedFCAdrCount = toFCADR(items, mode);
+                    return 0;
+                default:
+                    ushort val;
+                    if (fixedValue.opcode.TryGetValue(items[1], out val) ||
+                        fixedValue.quarter.TryGetValue(items[1], out val) ||
+                        fixedValue.extraq.TryGetValue(items[1], out val) ||
+                        fixedValue.IACode.TryGetValue(items[1], out val) ||
+                        fixedValue.IACode.TryGetValue(items[1], out val) ||
+                        fixedValue.extrac.TryGetValue(items[1], out val))
+                    { return 0; }
+                    return -1;
+            }
+        }
+        private int assignValue(String[] items, bool mode)
+        {
+            error = ResolveOperand(items[2]);
+            if (error == -1)
+            { return error; }
+            if (mode) { Bank.set_word((ushort)bank_index, (ushort)error); }
+            bank_index++;
+            return 0;
+        }
+        /// <summary>
+        /// Process the SETLOC Pre-processor word
+        /// </summary>
+        /// <param name="item">The current line</param>
+        /// <returns>error index</returns>
+        private int SETLOC(string[] item)
+        {
+            int val = 0;
+            int keyval;
+            try
+            {
+                val = Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber);
+            }
+            catch
+            {
+                if (labels.TryGetValue(item[2], out keyval))
+                {
+                    val = keyval;
+                }
+                else
+                {
+                    return -6; //unknown label
+                }
+            }
+            if (Bank.isErasable())
+            {
+                if (val <= 0xFF)
+                {
+                    bank_index = val;
+                }
+                else
+                {
+                    return -7;
+                } //index out of range
+            }
+            else
+            {
+                if (val <= 0x3FF)
+                {
+                    bank_index = val;
+                }
+                else
+                {
+                    return -7;
+                } //index out of range
+            }
+            return 0;
+        }
+        /// <summary>
+        /// Process the 2FCADR Pre-processor word
+        /// </summary>
+        /// <param name="item">the current line</param>
+        /// <returns>error index</returns>
+        private int toFCADR(string[] item, bool mode)
+        {
+            sWord adr = null;
+            try
+            {
+                adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber), true);
+            }
+            catch
+            {
+                int val = 0;
+                if (labels.TryGetValue(item[2], out val))
+                {
+                    adr = new sWord((ushort)val, true);
+                }
+                else
+                {
+                    bank_index += 2;
+                    unresolvedFCAdrCount += 1;
+                    return -6;
+                }
+            }
+            if (mode)
+            {
+                int tad = adr.getVal(10, 14);
+                if (tad < 4)
+                {
+                    Bank.set_word((ushort)bank_index, (ushort)(adr.getVal(10, 14)));
+                }
+                else
+                {
+                    Bank.set_word((ushort)bank_index, (ushort)(adr.getVal(10, 14) - 4));
+                }
+                bank_index++;
+                Bank.set_word((ushort)bank_index, (ushort)(adr.getVal(0, 9)));
+                bank_index++;
+            }
+            if (unresolvedFCAdrCount > 0)
+            {
+                return -6;
+            }
+            return 0;
+        }
+
+        //Bank management
         /// <summary>
         /// Switch between banks following the BANK/EBANK pre-processor word
         /// </summary>
         /// <param name="items">the current line</param>
-        private void switch_bank(string[] items)
+        private int prepareBankSwitch(string[] items)
         {
             save_index();
-            B.write_bank();
+            Bank.write_bank();
             switch (items[1])
             {
                 case "BANK":
                     FB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
-                    if (FB > 32)
+                    if (FB <= 35 && FB >= 0)
                     {
-                        FEB = 1;
+                        if (FB > 32)
+                        { FEB = 1; }
+                        else
+                        { FEB = 0; }
+                        bank_index = bank_index_counter[FB];
+                        bank_type = "FB";
+                        break;
                     }
-                    else
-                    {
-                        FEB = 0;
-                    }
-                    bank_index = bank_count[FB];
-                    bank_type = "FB";
-                    break;
+                    else { return -3; }
                 case "EBANK":
                     EB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
-                    bank_index = bank_count[EB];
-                    bank_type = "EB";
-                    break;
+                    if (EB >= 0 && EB <= 7)
+                    {
+                        bank_index = bank_index_counter[EB];
+                        bank_type = "EB";
+                        break;
+                    }
+                    else { return -3; }
             }
             bank_changed = true;
-
+            return 0;
         }
-
+        private void switchBank()
+        {
+            switch (bank_type)
+            {
+                case "FB":
+                    Bank = new BANK(false, FB, FEB, AGC_Bit_File);
+                    break;
+                case "EB":
+                    Bank = new BANK(true, EB, 0, AGC_Bit_File);
+                    break;
+            }
+            Bank.compiling = true;
+            bank_changed = false;
+        }
         /// <summary>
-        /// Save the bank_index to the bank_index array (bank_count) to keep track of the used area of the bank
+        /// Save the bank_index to the bank_index array (bank_index_counter) to keep track of the used area of the bank
         /// </summary>
         private void save_index()
         {
-            if (B.isErasable())
+            if (Bank.isErasable())
             {
-                bank_count[B.getId()] = bank_index;
+                bank_index_counter[Bank.getId()] = bank_index;
             }
             else
             {
-                if (B.getFEB() != 1)
+                if (Bank.getFEB() != 1)
                 {
-                    bank_count[B.getId() + 8] = bank_index;
+                    bank_index_counter[Bank.getId() + 8] = bank_index;
                 }
                 else
                 {
-                    bank_count[B.getId() + 16] = bank_index;
+                    bank_index_counter[Bank.getId() + 16] = bank_index;
                 }
             }
         }
+        private bool check_index()
+        {
+            switch (bank_type)
+            {
+                case "FB":
+                    if (bank_index > 1023)
+                    { return false; }
+                    return true;
+                case "EB":
+                    if (bank_index > 255)
+                    { return false; }
+                    return true;
+                default:
+                    return true;
+            }
+        }
+
+        //Miscallaneous functions
+        /// <summary>
+        /// Print labels list and memory status to "Labels_"+AGC_Code_File
+        /// </summary>
+        private void output_labels()
+        {
+            if (File.Exists("Labels_" + filename))
+            {
+                File.Delete("Labels_" + filename);
+            }
+            FileStream fs = File.Create("Labels_" + filename);
+            fs.Close();
+            fs.Dispose();
+            StreamWriter sw = new StreamWriter("Labels_" + AGC_Code_File, true);
+            string output;
+            sw.Write("=============================\nLabels list & adress : \n=============================\n");
+            foreach (KeyValuePair<string, int> kvp in labels)
+            {
+                output = String.Format("Label : {0} - Adress : 0x{1:X4} \n", kvp.Key, kvp.Value);
+                sw.Write(output);
+            }
+            sw.Write("\n=============================\nMemory usage : \n=============================\n");
+            for (int i = 0; i <= 7; i++)
+            {
+                output = String.Format("EBank : {0} - {1} word(s) used. \n", i, bank_index_counter[i]);
+                sw.Write(output);
+            }
+            sw.Write("=============================\n");
+            for (int i = 0; i <= 31; i++)
+            {
+                output = String.Format("FBank : {0} - {1} word(s) used. \n", i, bank_index_counter[i + 8]);
+                sw.Write(output);
+            }
+            sw.Write("=============================\n");
+            for (int i = 32; i <= 35; i++)
+            {
+                output = String.Format("SuperBank : {0} - {1} word(s) used. \n", i, bank_index_counter[i + 8]);
+                sw.Write(output);
+            }
+            sw.Close();
+        }
+        private void fillErrorDict()
+        {
+            YULErrors = new Dictionary<int, string>();
+            YULErrors.Add(0, "no error");
+            YULErrors.Add(-1, "Unknown Opcode");
+            YULErrors.Add(-2, "Invalid Operand");
+            YULErrors.Add(-3, "Invalid Bank ID");
+            YULErrors.Add(-4, "End of File reached");
+            YULErrors.Add(-5, "Label already exist");
+            YULErrors.Add(-6, "Unresolved label");
+            YULErrors.Add(-7, "Bank index out of range");
+        }
+
     }
+
 }

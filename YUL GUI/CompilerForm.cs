@@ -12,13 +12,13 @@ using nYUL;
 
 namespace YULCompiler
 {
-    public partial class Form1 : Form
+    public partial class CompilerForm : Form
     {
         string AGCFile;
         string BINFile;
         TextWriter tmp = null;
         
-        public Form1()
+        public CompilerForm()
         {
             InitializeComponent();
             tmp = new TextBoxStreamWriter(textBox2);

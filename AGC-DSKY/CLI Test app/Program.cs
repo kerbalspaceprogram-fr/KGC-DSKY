@@ -32,7 +32,10 @@ namespace ConsoleApplication1
             Console.ReadLine();*/
             YUL cp = new YUL("AGC_Test.agc", "AGC_Bin.bin");
             int err = cp.compile();
-            Console.WriteLine("File Compiled with output : {0}", err);
+            if (err == 0)
+            {
+                Console.WriteLine("File Compiled with output : {0}", err);
+            }
             Console.ReadLine();
             Channels chan = new Channels();
             AGC agc = new AGC("AGC_Bin.bin", chan);
