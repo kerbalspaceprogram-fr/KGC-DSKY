@@ -40,7 +40,7 @@ namespace ConsoleApplication1
             Channels chan = new Channels();
             AGC agc = new AGC("AGC_Bin.bin", chan);
             DSKY dsky = new DSKY(chan);
-            Thread t = new Thread(agc.start);
+            Thread t = new Thread(() => agc.start(false));
             Thread d = new Thread(dsky.DStart);
             d.Start();
             t.Start();

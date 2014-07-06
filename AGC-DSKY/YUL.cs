@@ -243,7 +243,14 @@ namespace nYUL
             }
             if (error != -5)
             {
-                labels.Add(items[0], adress);
+                if (items[1].Equals("EQUALS"))
+                {   unresolvedLabelError = assignAdress(items);
+                    if(unresolvedLabelError<0)
+                    { return 0; }
+                    labels.Add(items[0], unresolvedLabelError);
+                    bank_index--;
+                }
+                else { labels.Add(items[0], adress); }
             }
             switch (items[1])
             {
@@ -252,10 +259,38 @@ namespace nYUL
                 case "2FCADR":
                     unresolvedLabelError = toFCADR(items, false);
                     return 0;
+                default: break;
             }
             bank_index += 1;
             return 0;
         }
+
+        private int assignAdress(String[] item)
+        {
+            int val;
+            if(labels.TryGetValue(item[2], out val))
+            {
+                val = testModifier(val, item);
+                return val;
+            }
+            return -6;
+        }
+
+        private int testModifier(int value, string[] items)
+        {
+            try{
+                int val = Int32.Parse(items[3], System.Globalization.NumberStyles.AllowLeadingSign);
+                {
+                    value += val;
+                    return value;
+                }
+            }
+                catch{
+                    return value;
+                }
+        }
+
+
         /// <summary>
         /// Resolve the opcode and add a computed operand
         /// </summary>
@@ -301,7 +336,7 @@ namespace nYUL
             {
                 return preProcessorOp(items, true);
             }
-            error = ResolveOperand(items[2]);
+            error = ResolveOperand(items);
             if (error == -1)
             { return error; }
             else { adress = (ushort)error; }
@@ -314,17 +349,18 @@ namespace nYUL
         /// </summary>
         /// <param name="item">the current line</param>
         /// <returns>error index</returns>
-        private int ResolveOperand(string item)
+        private int ResolveOperand(String[] item)
         {
             ushort adress = 0;
+            int modifier = 0;
             try
             {
-                adress = (ushort)Int16.Parse(item, System.Globalization.NumberStyles.HexNumber);
+                adress = (ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber);
             }
             catch
             {
                 int val = 0;
-                if (labels.TryGetValue(item, out val))
+                if (labels.TryGetValue(item[2], out val))
                 {
                     sWord adr = new sWord();
                     if (val >= 0x1000)
@@ -344,16 +380,20 @@ namespace nYUL
                         }
                     }
                 }
-                else if (fixedValue.registers.TryGetValue(item, out val))
+                else if (fixedValue.registers.TryGetValue(item[2], out val))
                 {
                     adress = (ushort)val;
+                }
+                else if(Int32.TryParse(item[2], out modifier))
+                {
+                    adress = (ushort)(bank_index + modifier);
                 }
                 else
                 {
                     return -2;
                 }
             }
-            return adress;
+            return (ushort)testModifier((int)adress, item);
         }
 
         //pre-processor resolver
@@ -366,6 +406,8 @@ namespace nYUL
                 case "ERASE":
                     if (mode) { Bank.set_word((ushort)bank_index, 0); }
                     bank_index++;
+                    return 0;
+                case "EQUALS":
                     return 0;
                 case "BANK":
                     return prepareBankSwitch(items);
@@ -390,7 +432,7 @@ namespace nYUL
         }
         private int assignValue(String[] items, bool mode)
         {
-            error = ResolveOperand(items[2]);
+            error = ResolveOperand(items);
             if (error == -1)
             { return error; }
             if (mode) { Bank.set_word((ushort)bank_index, (ushort)error); }
@@ -455,14 +497,14 @@ namespace nYUL
             sWord adr = null;
             try
             {
-                adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber), true);
+                adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber));
             }
             catch
             {
                 int val = 0;
                 if (labels.TryGetValue(item[2], out val))
                 {
-                    adr = new sWord((ushort)val, true);
+                    adr = new sWord((ushort)val);
                 }
                 else
                 {
@@ -595,7 +637,8 @@ namespace nYUL
             FileStream fs = File.Create("Labels_" + filename);
             fs.Close();
             fs.Dispose();
-            StreamWriter sw = new StreamWriter("Labels_" + AGC_Code_File, true);
+            StreamWriter sw = new StreamWriter("Labels_" + filename, true);
+            Console.WriteLine("Writing file : Labels_" + filename);
             string output;
             sw.Write("=============================\nLabels list & adress : \n=============================\n");
             foreach (KeyValuePair<string, int> kvp in labels)
