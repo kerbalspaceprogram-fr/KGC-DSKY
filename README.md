@@ -1,37 +1,45 @@
 Simulation AGC-DSKY pour KSP
 
-Ce plugin/addon est en dÈveloppement et n'est pas implÈmentÈ dans KSP pour le moment. 
-Je prends le temps de dÈcouvrir le C# et le fonctionnement de l'AGC-DSKY en mÍme temps.
+Ce plugin/addon est en d√©veloppement et n'est pas impl√©ment√© dans KSP pour le moment. 
+Je prends le temps de d√©couvrir le C# et le fonctionnement de l'AGC-DSKY en m√™me temps.
 
-Ce plugin a pour vocation de ressembler ‡ l'AGC-DSKY, mais pas de l'Èmuler ‡ 100%. C'est dÈj‡ assez compliquÈ comme Áa :p (et surtout, certaines fonctions sont sans intÈrÍt dans KSP)
+Ce plugin a pour vocation de ressembler √† l'AGC-DSKY, mais pas de l'√©muler √† 100%. C'est d√©j√† assez compliqu√© comme √ßa :p (et surtout, certaines fonctions sont sans int√©r√™t dans KSP)
 
-Quelques spÈcifications pour une idÈe globals : 
+Quelques sp√©cifications pour une id√©e globals : 
 -Mots de 16 bits
 -8 * 256 mots de RAM (2kw)
 -36 * 1024 mots de ROM (36kw)
 12ms / cycle
-environ 30  instructions AGC (YUL) + un langage interprÈtÈ en interne.
+environ 30  instructions AGC (YUL) + un langage interpr√©t√© en interne.
 -registres I/O : 2 * 4 mots
 
-Comme vous pouvez le voir, c'est pas un truc de compÈtition, et pourtant, va falloir que Áa vole :)
+Comme vous pouvez le voir, c'est pas un truc de comp√©tition, et pourtant, va falloir que √ßa vole :)
 
 Changelog :
+31/08/2014:
+J'ai aps vu que le changelog avait pas boug√©. L'AGC lui oui.
+YUL : * Impl√©mentation des codes I/O.
+      * Reflexion √† une gestion des erreurs d'adressage, mais je pense qu'il va surtout faire gaffe √† ce qu'on √©crit. De toute fa√ßon y'en avait pas √† l'√©poque.
+AGC : * Gestion des codes I/O et refonte de la gestion des extracodes et de l'interpr√©tation des opcodes (bah... En gros, fallait √ßa pour que les I/O fonctionnent)
+      * Ajout de divers opcodes. Ca s'√©toffe tout doucement. Maintenant que la gestion des extracodes fonctionne, √ßa va aller plus vite.
+Debugger : *Ajout d'un placeholder de DSKY qui √©crit des... trucs pour le syst√®me I/O. Du coup comme l'AGC passe par les I/O pour √©crire dans les fen√™tres du debugger (comme quoi √ßa marche bien ces I/O :D), ben √ßa charge un peu la fen√™tre. Quand je serais sur que le syst√®me marche, j'enl√®verai les messages du DSKY qui dit que l'AGC a √©crit)
+
 02/11/2013:
-YUL : YUL fonctionne et devrait compiler le code AGC normalement. Le code interprÈtÈ n'est pas encore gÈrÈ.
-YUL GUI : c'est moche, mais Áa fait ce qu'on lui demande. Je le laisse en Ètat pour l'instant, c'est pas ma prioritÈ,
-Áa tient lieu de placeholder pour un futur debugger.
+YUL : YUL fonctionne et devrait compiler le code AGC normalement. Le code interpr√©t√© n'est pas encore g√©r√©.
+YUL GUI : c'est moche, mais √ßa fait ce qu'on lui demande. Je le laisse en √©tat pour l'instant, c'est pas ma priorit√©,
+√ßa tient lieu de placeholder pour un futur debugger.
 
 08/10/2013 :
 YUL:
-RÈsolutions des labels
+R√©solutions des labels
 Reconnaissance des OPCODEs
 Changement de bank.
-TODO : ImplÈmentation des instructions de compilation
+TODO : Impl√©mentation des instructions de compilation
 
 06/10/2013 : 
-AccËs mÈmoire et fichier mÈmoire : DONE (Bank class)
+Acc√®s m√©moire et fichier m√©moire : DONE (Bank class)
 Manipulation de mots de 16 bits : DONE (sWord class)
 Emulation d'horloge : TODO (placeholder CLOCK class)
 AGC : TODO (bases are set, interpreter should work. OPCODES need to be coded)
 
-Le code est commentÈ (en anglais) dans les grandes lignes. Toute suggestion ou commentaires sont bienvenus :)
+Le code est comment√© (en anglais) dans les grandes lignes. Toute suggestion ou commentaires sont bienvenus :)
