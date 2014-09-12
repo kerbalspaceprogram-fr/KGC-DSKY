@@ -110,7 +110,7 @@ namespace AGC_DEBUG
 
         private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
         {
-            switch(tabControl1.SelectedIndex)
+            switch (tabControl1.SelectedIndex)
             {
                 case 0: Console.SetOut(YULOut); break;
                 case 2: Console.SetOut(AGCOut); break;
@@ -121,7 +121,7 @@ namespace AGC_DEBUG
         private void AGCBinLoad_Click(object sender, EventArgs e)
         {
             AGCFileLoad.FilterIndex = 2;
-            if(AGCFileLoad.ShowDialog() == DialogResult.OK)
+            if (AGCFileLoad.ShowDialog() == DialogResult.OK)
             {
                 BinFile = AGCFileLoad.FileName;
                 Console.WriteLine("File {0} loaded.", Path.GetFileName(BinFile));
@@ -132,7 +132,7 @@ namespace AGC_DEBUG
         public void read_chan(int index)
         {
             TextBoxInterThread o = new TextBoxInterThread();
-            switch(index)
+            switch (index)
             {
                 case 0: o = textBox1; break;
                 case 1: o = textBox2; break;
@@ -141,7 +141,7 @@ namespace AGC_DEBUG
                 case 4: o = textBox4; break;
                 case 5: o = textBox3; break;
                 case 6: t.Abort(); Console.WriteLine("AGC halted");
-                    if(this.InvokeRequired)
+                    if (this.InvokeRequired)
                     {
                         haltlist = new dhalt(haltDebug);
                         this.Invoke(haltlist);
@@ -180,14 +180,14 @@ namespace AGC_DEBUG
 
         private void AGCStep_Click(object sender, EventArgs e)
         {
-            agc.MCT();
+             agc.MCT();
         }
 
         private void Halt_Click(object sender, EventArgs e)
         {
             if (t.IsAlive)
             { t.Abort(); }
-            if(agc.isRunning())
+            if (agc.isRunning())
             { agc.Halt(); }
             Halt.Enabled = false;
             AGCStep.Enabled = false;
@@ -223,7 +223,7 @@ namespace AGC_DEBUG
 
         public void setBoxText(int s)
         {
-            this.Text = string.Format("{0:X}",s);
+            this.Text = string.Format("{0:X}", s);
         }
     }
 
